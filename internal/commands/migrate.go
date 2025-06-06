@@ -4,6 +4,7 @@ import (
 	"attendance/backend/internal/pkg/repository/postgresql"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -264,7 +265,8 @@ func MigrateUP(db *postgresql.Database) {
 	)
 	err := db.QueryRow("SELECT version, dirty, error FROM schema_migrations").Scan(&version, &dirty, &er)
 	if err != nil {
-		if err.Error() == `ERROR: relation "schema_migrations" does not exist (SQLSTATE=42P01)` {
+		// Check for table not exists error by SQLSTATE code (language independent)
+		if strings.Contains(err.Error(), "SQLSTATE=42P01") {
 			if _, err = db.Exec(`
 				CREATE TABLE IF NOT EXISTS schema_migrations (version int not null, dirty bool not null, error text);
 				DELETE FROM schema_migrations;
