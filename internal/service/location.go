@@ -172,8 +172,8 @@ func CalculateDistance(la1, lo1, la2, lo2 float64) float64 {
   }
   
   func Reverse(lat, lon float64) (ReverseLocation, error) {
-	client := http.Client{}
-	endpoint := fmt.Sprintf("https://nominatim.openstreetmap.org/reverse")
+    client := http.Client{}
+    endpoint := "https://nominatim.openstreetmap.org/reverse"
   
 	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {

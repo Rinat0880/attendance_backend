@@ -29,9 +29,9 @@ func AddDataToExcel(employees []Employee, departments, positions []string) (stri
 	if _, err := os.Stat(templateFileName); os.IsNotExist(err) {
 		// Create a new file if the template doesn't exist
 		f = excelize.NewFile()
-		f.NewSheet("従業員")
-		f.NewSheet("部署") // Departments
-		f.NewSheet("役職") // Positions
+		f.NewSheet("従業員") // Employees
+		f.NewSheet("部署")  // Departments
+		f.NewSheet("役職")  // Positions
 	} else {
 		// Open the existing template file
 		f, err = excelize.OpenFile(templateFileName)
@@ -44,6 +44,14 @@ func AddDataToExcel(employees []Employee, departments, positions []string) (stri
 	// Write Employee Data to the "Employees" sheet
 	employeeSheet := "従業員"
 	f.SetSheetName("Sheet1", employeeSheet)
+
+	rows, err := f.GetRows(employeeSheet)
+	if err == nil && len(rows) > 1 {
+		for i := len(rows); i > 2; i-- {
+			f.RemoveRow(employeeSheet, i)
+		}
+	}
+
 	headers := []string{"社員番号", "姓", "名", "表示名", "権限", "パスワード", "部署", "役職", "電話番号", "メールアドレス"}
 	for i, header := range headers {
 		cell := fmt.Sprintf("%c1", 'A'+i)
@@ -65,8 +73,17 @@ func AddDataToExcel(employees []Employee, departments, positions []string) (stri
 
 	// Write Department Data to the "部署" sheet
 	departmentSheet := "部署"
+
+	rows, err = f.GetRows(departmentSheet)
+	if err == nil && len(rows) > 1 {
+		for i := len(rows); i > 2; i-- {
+			f.RemoveRow(departmentSheet, i)
+		}
+	}
+
+
 	for i, dept := range departments {
-		cell := fmt.Sprintf("A%d", i+2) // Start from the first row
+		cell := fmt.Sprintf("A%d", i+2) // Start from the second row
 		if err := f.SetCellValue(departmentSheet, cell, dept); err != nil {
 			return "", fmt.Errorf("failed to write department data: %w", err)
 		}
@@ -74,8 +91,17 @@ func AddDataToExcel(employees []Employee, departments, positions []string) (stri
 
 	// Write Position Data to the "役職" sheet
 	positionSheet := "役職"
+
+	rows, err = f.GetRows(positionSheet)
+	if err == nil && len(rows) > 1 {
+		for i := len(rows); i > 2; i-- {
+			f.RemoveRow(positionSheet, i)
+		}
+	}
+
+
 	for i, pos := range positions {
-		cell := fmt.Sprintf("A%d", i+2) // Start from the first row
+		cell := fmt.Sprintf("A%d", i+2) // Start from the second row
 		if err := f.SetCellValue(positionSheet, cell, pos); err != nil {
 			return "", fmt.Errorf("failed to write position data: %w", err)
 		}
@@ -87,7 +113,6 @@ func AddDataToExcel(employees []Employee, departments, positions []string) (stri
 	}
 
 	return "employee_list.xlsx", nil
-
 }
 
 func SaveInvalidUsersToExcel(employees []Employee, departments, positions []string) (string, error) {
@@ -157,5 +182,4 @@ func SaveInvalidUsersToExcel(employees []Employee, departments, positions []stri
 	}
 
 	return "employee_list.xlsx", nil
-
 }
