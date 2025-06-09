@@ -96,7 +96,7 @@ type GetFullName struct {
 	bun.BaseModel `bun:"table:users"`
 
 	FullName   *string `json:"full_name"`
-	EmployeeID *string `json:employee_id"`
+	EmployeeID *string `json:"employee_id"`
 }
 
 type CreateResponse struct {

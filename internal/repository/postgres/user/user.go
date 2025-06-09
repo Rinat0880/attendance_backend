@@ -1363,8 +1363,7 @@ func (r Repository) GetDashboardList(ctx context.Context, filter Filter) ([]Depa
             attendance AS a ON a.employee_id = u.employee_id AND a.work_day = '%s'
 		RIGHT JOIN department as d on d.id=u.department_id AND d.deleted_at IS NULL	
         WHERE
-            u.deleted_at IS NULL AND
-            u.role = 'EMPLOYEE';`, workDay)
+            u.deleted_at IS NULL;`, workDay)
 
 	countRows, err := r.QueryContext(ctx, countQuery)
 	if err != nil {
@@ -1398,7 +1397,7 @@ func (r *Repository) ExportEmployee(ctx context.Context) (string, error) {
 	FROM users u
 	JOIN department d ON d.id = u.department_id AND d.deleted_at IS NULL
 	JOIN position p ON p.id = u.position_id AND p.deleted_at IS NULL
-	WHERE u.deleted_at IS NULL AND u.role = 'EMPLOYEE'
+	WHERE u.deleted_at IS NULL 
 	ORDER BY u.employee_id DESC;
 `
 
