@@ -959,6 +959,51 @@ func CreatePDF(employeeIDs []string, pdfFilename string) error {
 	return nil
 }
 
+func (r *Repository) GetIDFromUserID(ctx context.Context, id int) (string, error) {
+	var empid string
+	query := fmt.Sprintf(`SELECT employee_id FROM users WHERE deleted_at IS NULL and id = %d`, id)
+	err := r.QueryRowContext(ctx, query).Scan(
+		&empid,
+	)
+	if err != nil {
+		return "", web.NewRequestError(errors.New("no user from this ID"), http.StatusBadRequest)
+	}
+	return empid, nil
+}
+
+func (r *Repository) GetQrCodeforEmployeeIdByHimself(ctx context.Context, employeeID string) (string, error) {
+	claims, err := r.CheckClaims(ctx, auth.RoleEmployee)
+	if err != nil {
+		fmt.Println("1: ", err)
+		return "", err
+	}
+
+	empid, err := r.GetIDFromUserID(ctx, claims.UserId)
+	if err != nil {
+		return "", err
+	}
+	if empid != employeeID {
+		return "", web.NewRequestError(errors.New("you can only generate QR code for your own employee ID"), http.StatusForbidden)
+	}
+
+	// Define the directory and filename
+	dir := "qr_codes"
+	filename := filepath.Join(dir, fmt.Sprintf("%s.png", employeeID))
+
+	// Check if the directory exists, create if it doesn't
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return "", fmt.Errorf("could not create directory %s: %v", dir, err)
+	}
+
+	// Generate the QR code
+	if err := GenerateQRCode(employeeID, filename); err != nil {
+		return "", err
+	}
+
+	fmt.Printf("QR code for employee ID %s saved to %s\n", employeeID, filename)
+	return filename, nil
+}
+
 func (r *Repository) GetQrCodeByEmployeeID(ctx context.Context, employeeID string) (string, error) {
 	_, err := r.CheckClaims(ctx, auth.RoleAdmin)
 	if err != nil {

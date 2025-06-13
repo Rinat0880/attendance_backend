@@ -122,6 +122,7 @@ func (r Router) Init() error {
 	// #user
 	r.Get("/api/v1/user/list", userController.GetUserList, middleware.Authenticate(r.auth, auth.RoleAdmin))
 	r.Get("/api/v1/user/:id", userController.GetUserDetailById, middleware.Authenticate(r.auth, auth.RoleAdmin))
+	r.Get("api/v1/user/qrcodehimself", userController.GetQrCodeforEmployeeIdByHimself, middleware.Authenticate(r.auth, auth.RoleEmployee))
 	r.Get("/api/v1/user/qrcode", userController.GetQrCodeByEmployeeId, middleware.Authenticate(r.auth, auth.RoleAdmin))
 	r.Get("/api/v1/user/qrcodelist", userController.GetQrCodeList, middleware.Authenticate(r.auth, auth.RoleAdmin))
 	r.Get("/api/v1/user/export_employee", userController.ExportEmployee, middleware.Authenticate(r.auth, auth.RoleAdmin))

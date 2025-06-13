@@ -89,6 +89,39 @@ func (uc Controller) GetUserDetailById(c *web.Context) error {
 		"status": true,
 	}, http.StatusOK)
 }
+
+func (uc Controller) GetQrCodeforEmployeeIdByHimself(c *web.Context) error {
+	employeeID := c.Query("employee_id")
+	if employeeID == "" {
+		return c.RespondError(web.NewRequestError(errors.New("employee_id parameter is required"), http.StatusBadRequest))
+	}
+
+	// Call the repository method to get the image file path
+	filePath, err := uc.user.GetQrCodeforEmployeeIdByHimself(c.Ctx, employeeID)
+	if err != nil {
+		return c.RespondError(err)
+	}
+
+	// Open the QR code image file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return c.RespondError(err)
+	}
+	defer file.Close()
+
+	// Set the content type to PNG
+	c.Header("Content-Type", "image/png")
+	c.Header("Content-Disposition", "inline; filename="+filepath.Base(filePath))
+	// Write the image data to the response
+	c.Status(http.StatusOK)
+	_, err = io.Copy(c.Writer, file)
+	if err != nil {
+		return c.RespondError(err)
+	}
+
+	return nil
+}
+
 func (uc Controller) GetQrCodeByEmployeeId(c *web.Context) error {
 
 	// Get the 'employee_id' query parameter

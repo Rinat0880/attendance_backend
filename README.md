@@ -53,7 +53,7 @@ Write database dependencies that yours;
  Open attendance_backend file VS Code or other. Open the terminal and run the following command:
 
     ```terminal
-    make run
+    make run // or if it doesnt work - go run cmd/main.go
     ```
 4.  **Local changes Update to Server**:
  If you change smth on your local  code and update it on server just push it on main branch , CI/CD pipeline Automatic update your server:

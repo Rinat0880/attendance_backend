@@ -13,6 +13,7 @@ type User interface {
 	GetMonthlyStatistics(ctx context.Context, filter user.MonthlyStatisticRequest) (user.MonthlyStatisticResponse, error)
 	GetEmployeeDashboard(ctx context.Context) (user.DashboardResponse, error)
 	GetDetailById(ctx context.Context, id int) (user.GetDetailByIdResponse, error)
+	GetQrCodeforEmployeeIdByHimself(ctx context.Context, emloyee_id string) (string, error)
 	GetQrCodeByEmployeeID(ctx context.Context, emloyee_id string) (string, error)
 	GetQrCodeList(ctx context.Context) (string, error)
 	GetDashboardList(ctx context.Context, filter user.Filter) ([]user.DepartmentResult, int, error)
