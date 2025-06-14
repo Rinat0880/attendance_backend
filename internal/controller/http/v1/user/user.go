@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -422,6 +423,8 @@ func (uc Controller) GetDashboardListSSE(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control")
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -466,24 +469,24 @@ func (uc Controller) GetDashboardListSSE(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Send initial data to the client
-	go func() {
+	// Function to send data to client
+	sendData := func() error {
 		var filter user.Filter
 		// You can extract filters from the request query if needed
 
 		list, count, err := uc.user.GetDashboardList(ctx, filter)
 		if err != nil {
 			log.Printf("Error fetching dashboard list: %v", err)
-			return
+			return err
 		}
+
 		colors, err := uc.company_Info.GetNewTableColor(ctx)
 		if err != nil {
-			log.Printf("Error fetching dashboard list: %v", err)
-			return
+			log.Printf("Error fetching colors: %v", err)
+			return err
 		}
 
 		data := map[string]interface{}{
-
 			"bold": colors.TextBold,
 			"Colors": map[string]interface{}{
 				"new_present_color": colors.NewPresentColor,
@@ -493,51 +496,69 @@ func (uc Controller) GetDashboardListSSE(w http.ResponseWriter, r *http.Request)
 				"results": list,
 				"count":   count,
 			},
-			"status": true,
+			"status":    true,
+			"timestamp": time.Now().Unix(), // Добавляем timestamp для отладки
 		}
-		jsonData, _ := json.Marshal(data)
+
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
 
 		// Send the data
 		fmt.Fprintf(w, "data: %s\n\n", jsonData)
 		flusher.Flush()
-	}()
+		return nil
+	}
+
+	// Send initial data to the client
+	if err := sendData(); err != nil {
+		log.Printf("Error sending initial data: %v", err)
+		return
+	}
+
+	// Send periodic ping to keep connection alive
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
 	// Wait for database notifications and send updates
 	for {
-		notification, err := dbConn.Conn().WaitForNotification(ctx)
-		if err != nil {
-			if ctx.Err() != nil { // Handle client disconnect
-				log.Println("Client disconnected.")
-				break
-			}
-			log.Printf("Error waiting for notification: %v", err)
-			break
-		}
+		select {
+		case <-ctx.Done():
+			log.Println("Client disconnected.")
+			return
 
-		if notification.Channel == "attendance_changes" {
-			log.Println("Attendance changed notification received.")
+		case <-ticker.C:
+			// Send ping to keep connection alive
+			fmt.Fprintf(w, ": ping\n\n")
+			flusher.Flush()
 
-			var filter user.Filter
-			// Add your filter setup here if needed
+		default:
+			// Set a timeout for waiting for notifications
+			notificationCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+			notification, err := dbConn.Conn().WaitForNotification(notificationCtx)
+			cancel()
 
-			list, count, err := uc.user.GetDashboardList(ctx, filter)
 			if err != nil {
-				log.Printf("Error fetching updated dashboard list: %v", err)
+				if notificationCtx.Err() == context.DeadlineExceeded {
+					continue // Timeout is normal, continue listening
+				}
+				if ctx.Err() != nil { // Handle client disconnect
+					log.Println("Client disconnected.")
+					return
+				}
+				log.Printf("Error waiting for notification: %v", err)
 				continue
 			}
 
-			data := map[string]interface{}{
-				"data": map[string]interface{}{
-					"results": list,
-					"count":   count,
-				},
-				"status": true,
-			}
-			jsonData, _ := json.Marshal(data)
+			if notification.Channel == "attendance_changes" {
+				log.Printf("Attendance changed notification received: %s", notification.Payload)
 
-			// Send the updated data
-			fmt.Fprintf(w, "data: %s\n\n", jsonData)
-			flusher.Flush()
+				if err := sendData(); err != nil {
+					log.Printf("Error sending updated data: %v", err)
+					continue
+				}
+			}
 		}
 	}
 

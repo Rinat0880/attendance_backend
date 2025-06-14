@@ -1290,6 +1290,7 @@ func (r Repository) GetDashboardList(ctx context.Context, filter Filter) ([]Depa
                  SELECT
                     u.id,
                     u.employee_id,
+					u.role,
                     u.last_name,
 					u.nick_name,
                     COALESCE(a.status, false) AS status,
@@ -1309,7 +1310,7 @@ func (r Repository) GetDashboardList(ctx context.Context, filter Filter) ([]Depa
                        WHERE
                            a.work_day = '%s'  AND a.deleted_at IS NULL
                    ) AS a ON a.employee_id = u.employee_id
-                   WHERE    d.deleted_at IS NULL
+                   WHERE    d.deleted_at IS NULL AND u.role = 'EMPLOYEE'
                    ORDER BY   d.display_number ASC %s %s`, workDay, limitQuery, offsetQuery)
 
 	rows, err := r.QueryContext(ctx, query)
@@ -1329,14 +1330,15 @@ func (r Repository) GetDashboardList(ctx context.Context, filter Filter) ([]Depa
 			userID             sql.NullInt64
 			departmentName     sql.NullString
 			departmentNickName sql.NullString
-
-			nickName sql.NullString
+			role               sql.NullString 
+			nickName           sql.NullString
 		)
 
 		// Scan the row with individual fields
 		err = rows.Scan(
 			&userID,
 			&detail.EmployeeID,
+			&role,  
 			&detail.LastName,
 			&nickName,
 			&detail.Status,
