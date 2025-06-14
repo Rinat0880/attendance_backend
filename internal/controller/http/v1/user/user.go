@@ -561,6 +561,4 @@ func (uc Controller) GetDashboardListSSE(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
-
-	log.Println("SSE connection closed.")
 }

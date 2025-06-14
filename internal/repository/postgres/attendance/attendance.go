@@ -114,22 +114,26 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
     d.name AS department_name,
     u.position_id,
     p.name AS position_name,
-	u.nick_name,
+    u.nick_name,
     a.work_day,
     a.status,
-	a.forget_leave,
+    a.forget_leave,
     TO_CHAR(a.come_time, 'HH24:MI') AS come_time,
     TO_CHAR(a.leave_time, 'HH24:MI') AS leave_time,
-    COALESCE(SUM(EXTRACT(EPOCH FROM (ap.leave_time - ap.come_time)) / 60)::INT, 0) AS total_minutes
+    COALESCE(SUM(EXTRACT(EPOCH FROM (
+        CASE 
+            WHEN ap.leave_time IS NOT NULL THEN ap.leave_time - ap.come_time
+            ELSE NULL
+        END
+    )) / 60)::INT, 0) AS total_minutes
 FROM users u
-LEFT  JOIN attendance a ON u.employee_id = a.employee_id AND a.work_day = %s AND a.deleted_at IS NULL
+LEFT JOIN attendance a ON u.employee_id = a.employee_id AND a.work_day = %s AND a.deleted_at IS NULL
 LEFT JOIN department d ON u.department_id = d.id
 LEFT JOIN position p ON u.position_id = p.id
-LEFT JOIN attendance_period ap ON ap.attendance_id = a.id
+LEFT JOIN attendance_period ap ON ap.attendance_id = a.id AND ap.work_day = %s
 
-
-		%s %s %s%s%s
-	`, dateCondition, whereQuery, groupByQuery, orderQuery, limitQuery, offsetQuery)
+        %s %s %s %s %s
+	`, dateCondition, dateCondition, whereQuery, groupByQuery, orderQuery, limitQuery, offsetQuery)
 
 	rows, err := r.QueryContext(ctx, query)
 	if err != nil {
@@ -707,20 +711,20 @@ func (r Repository) resetAttendanceLeaveTime(ctx context.Context, id int, userId
 	loc, _ := time.LoadLocation("Asia/Tokyo")
 	currentTime := time.Now().In(loc)
 
-	comeTime := currentTime.Format("15:04:05")
 	updatedAt := currentTime.Format("2006-01-02 15:04:05")
 
+	// Не изменяем come_time, только сбрасываем leave_time
 	query := `
-		UPDATE attendance
-		SET 
-			come_time = ?,
-			leave_time = NULL,
-			updated_at = ?,
-			updated_by = ?
-		WHERE id = ?;
-	`
+        UPDATE attendance
+        SET 
+            leave_time = NULL,
+            status = true,
+            updated_at = ?,
+            updated_by = ?
+        WHERE id = ?;
+    `
 
-	_, err := r.DB.ExecContext(ctx, query, comeTime, updatedAt, userId, id)
+	_, err := r.DB.ExecContext(ctx, query, updatedAt, userId, id)
 	return err
 }
 
