@@ -80,7 +80,7 @@ type UserExcellData struct {
 	DepartmentName string
 	DepartmentID   int
 	PositionName   string
-	PositionID     int
+	PositionID     *int
 	Phone          string
 	Email          string
 	Error          string
@@ -169,9 +169,6 @@ func ExcelReaderByCreate(
 		if userData.DepartmentName == "" {
 			userErrors.DepartmentName = "部署が未入力です"
 		}
-		if userData.PositionName == "" {
-			userErrors.PositionName = "職位が未入力です"
-		}
 
 		// Validate half-width characters
 		if !isHalfWidth(userData.EmployeeID) {
@@ -212,12 +209,14 @@ func ExcelReaderByCreate(
 		}
 
 		// Check department and position
-        if _, deptOK := departmentMap[userData.DepartmentName]; !deptOK {
-            userErrors.DepartmentName = "部署名が存在しません"
-        }
-        if _, posOK := positionMap[userData.PositionName]; !posOK {
-            userErrors.PositionName = "職位名が存在しません"
-        }
+		if _, deptOK := departmentMap[userData.DepartmentName]; !deptOK {
+			userErrors.DepartmentName = "部署名が存在しません"
+		}
+		if userData.PositionName != "" {
+			if _, posOK := positionMap[userData.PositionName]; !posOK {
+				userErrors.PositionName = "職位名が存在しません"
+			}
+		}
 
 		// Check if there are any errors
 		hasErrors := userErrors != submodel.UserErrors{}
@@ -231,7 +230,13 @@ func ExcelReaderByCreate(
 
 		// If no errors, add to valid users
 		userData.DepartmentID = departmentMap[userData.DepartmentName]
-		userData.PositionID = positionMap[userData.PositionName]
+		if userData.PositionName != "" {
+			if posID, exists := positionMap[userData.PositionName]; exists {
+				userData.PositionID = &posID
+			}
+		} else {
+			userData.PositionID = nil 
+		}
 
 		localEmployeeIDs[userData.EmployeeID] = i + 1
 		if userData.Email != "" {
@@ -348,9 +353,6 @@ func ExcelReaderByEdit(
 		if userData.DepartmentName == "" {
 			userErrors.DepartmentName = "部署が未入力です"
 		}
-		if userData.PositionName == "" {
-			userErrors.PositionName = "職位が未入力です"
-		}
 
 		// Validate half-width characters
 		if !isHalfWidth(userData.EmployeeID) {
@@ -364,12 +366,14 @@ func ExcelReaderByEdit(
 		}
 
 		// Check department and position
-        if _, deptOK := departmentMap[userData.DepartmentName]; !deptOK {
-            userErrors.DepartmentName = "部署名が存在しません"
-        }
-        if _, posOK := positionMap[userData.PositionName]; !posOK {
-            userErrors.PositionName = "職位名が存在しません"
-        }
+		if _, deptOK := departmentMap[userData.DepartmentName]; !deptOK {
+			userErrors.DepartmentName = "部署名が存在しません"
+		}
+		if userData.PositionName != "" {
+			if _, posOK := positionMap[userData.PositionName]; !posOK {
+				userErrors.PositionName = "職位名が存在しません"
+			}
+		}
 
 		// Check for duplicates in DB (excluding self)
 		if _, exists := existingIDs[userData.EmployeeID]; exists {
@@ -419,7 +423,13 @@ func ExcelReaderByEdit(
 
 		// If no errors, add to valid users
 		userData.DepartmentID = departmentMap[userData.DepartmentName]
-		userData.PositionID = positionMap[userData.PositionName]
+		if userData.PositionName != "" {
+			if posID, exists := positionMap[userData.PositionName]; exists {
+				userData.PositionID = &posID
+			}
+		} else {
+			userData.PositionID = nil 
+		}
 
 		localIDs[userData.EmployeeID] = i + 1
 		if userData.Email != "" {

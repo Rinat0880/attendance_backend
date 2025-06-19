@@ -12,9 +12,9 @@ var charsMap2 = map[string]string{"I": "d", "v": "r", "1": "A", "o": "O", "3": "
 
 func GenerateHash(link string) string {
 	if len(link) > 6 {
-		if "/media" == link[:6] {
+		if link[:6] == "/media" {
 			link = link[6:]
-		} else if "media" == link[:5] {
+		} else if link[:5] == "media" {
 			link = link[5:]
 		}
 	}

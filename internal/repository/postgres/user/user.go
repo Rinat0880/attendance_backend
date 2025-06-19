@@ -164,7 +164,7 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
 			u.email
 		FROM users u
 		 JOIN department d ON d.id=u.department_id and d.deleted_at is null
-		 JOIN position p ON p.id=u.position_id and p.deleted_at is null
+		 LEFT JOIN position p ON p.id=u.position_id and p.deleted_at is null
 
 		%s %s %s %s
 	`, whereQuery, orderQuery, limitQuery, offsetQuery)
@@ -178,7 +178,6 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
 	}
 
 	var list []GetListResponse
-
 	for rows.Next() {
 		var detail GetListResponse
 		var nickName sql.NullString
@@ -330,11 +329,13 @@ func (r Repository) Create(ctx context.Context, request CreateRequest) (CreateRe
 		return CreateResponse{}, web.NewRequestError(errors.New("invalid department ID"), http.StatusBadRequest)
 	}
 
-	// Check if position exists
-	var posExists bool
-	err = r.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM position WHERE id = ? AND deleted_at IS NULL)", request.PositionID).Scan(&posExists)
-	if err != nil || !posExists {
-		return CreateResponse{}, web.NewRequestError(errors.New("invalid position ID"), http.StatusBadRequest)
+	// Check if position exists (only if positionID is not null)
+	if request.PositionID != nil {
+		var posExists bool
+		err = r.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM position WHERE id = ? AND deleted_at IS NULL)", request.PositionID).Scan(&posExists)
+		if err != nil || !posExists {
+			return CreateResponse{}, web.NewRequestError(errors.New("invalid position ID"), http.StatusBadRequest)
+		}
 	}
 
 	// Check if the email already exists
@@ -347,7 +348,7 @@ func (r Repository) Create(ctx context.Context, request CreateRequest) (CreateRe
 	}
 
 	if Email {
-		return CreateResponse{}, web.NewRequestError(errors.New("メールアドレス はすでに使用されています。"), http.StatusBadRequest)
+		return CreateResponse{}, web.NewRequestError(errors.New("メールアドレスはすでに使用されています。"), http.StatusBadRequest)
 	}
 
 	// Hash the password
@@ -432,11 +433,18 @@ func (r Repository) UpdateColumns(ctx context.Context, request UpdateRequest) er
 		return web.NewRequestError(errors.New("invalid department ID"), http.StatusBadRequest)
 	}
 
-	var posExists bool
-	err = r.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM position WHERE id = ? AND deleted_at IS NULL)", request.PositionID).Scan(&posExists)
-	if err != nil || !posExists {
-		return web.NewRequestError(errors.New("invalid position ID"), http.StatusBadRequest)
+	if request.PositionID != nil {
+		var posExists bool
+		err = r.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM position WHERE id = ? AND deleted_at IS NULL)", *request.PositionID).Scan(&posExists)
+		if err != nil || !posExists {
+			return web.NewRequestError(errors.New("invalid position ID"), http.StatusBadRequest)
+		}
+		q.Set("position_id = ?", request.PositionID)
+	} else {
+		// Explicitly set position_id to NULL when PositionID is nil
+		q.Set("position_id = NULL")
 	}
+
 	if request.Role != nil {
 		role := strings.ToUpper(*request.Role)
 		if (role != "EMPLOYEE") && (role != "ADMIN") {
@@ -462,9 +470,6 @@ func (r Repository) UpdateColumns(ctx context.Context, request UpdateRequest) er
 	}
 	if request.DepartmentID != nil {
 		q.Set("department_id = ?", request.DepartmentID)
-	}
-	if request.PositionID != nil {
-		q.Set("position_id=?", request.PositionID)
 	}
 	if request.Phone != nil {
 		q.Set("phone=?", request.Phone)
@@ -597,7 +602,7 @@ func (r Repository) CreateByExcell(ctx context.Context, request ExcellRequest) (
 			LastName:     &data.LastName,
 			NickName:     data.NickName,
 			DepartmentID: &data.DepartmentID,
-			PositionID:   &data.PositionID,
+			PositionID:   data.PositionID,
 			Phone:        &data.Phone,
 			Email:        &data.Email,
 			CreatedAt:    time.Now(),
@@ -621,12 +626,17 @@ func (r Repository) CreateByExcell(ctx context.Context, request ExcellRequest) (
 		}
 
 		batch := users[i:end]
-		_, err := r.NewInsert().Model(&batch).Exec(ctx)
+		fmt.Printf("Inserting batch of %d users\n", len(batch))
+
+		result, err := r.NewInsert().Model(&batch).Exec(ctx)
 		if err != nil {
-			log.Printf("Failed to insert batch %d-%d: %v", i, end, err)
-			continue // Skip to the next batch
+			fmt.Printf("Error inserting batch: %v\n", err)
+			return insertedCount, invalidData, web.NewRequestError(errors.Wrap(err, "batch insert users"), http.StatusInternalServerError)
 		}
-		insertedCount += len(batch)
+
+		rowsAffected, _ := result.RowsAffected()
+		fmt.Printf("Rows affected in this batch: %d\n", rowsAffected)
+		insertedCount += int(rowsAffected)
 	}
 
 	// Count the created users
@@ -635,16 +645,16 @@ func (r Repository) CreateByExcell(ctx context.Context, request ExcellRequest) (
 func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (int, []submodel.InvalidUserResponse, error) {
 	claims, err := r.CheckClaims(ctx, auth.RoleAdmin)
 	if err != nil {
-		return 0,nil, err
+		return 0, nil, err
 	}
 
 	departmentMap, err := r.LoadDepartmentMap(ctx)
 	if err != nil {
-		return 0,nil, web.NewRequestError(errors.Wrap(err, "loading department map"), http.StatusInternalServerError)
+		return 0, nil, web.NewRequestError(errors.Wrap(err, "loading department map"), http.StatusInternalServerError)
 	}
 	positionMap, err := r.LoadPositionMap(ctx)
 	if err != nil {
-		return 0,nil, web.NewRequestError(errors.Wrap(err, "loading position map"), http.StatusInternalServerError)
+		return 0, nil, web.NewRequestError(errors.Wrap(err, "loading position map"), http.StatusInternalServerError)
 	}
 
 	employeeIDMap := make(map[string]struct{})
@@ -653,7 +663,7 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 	rows, err := r.QueryContext(ctx,
 		"SELECT employee_id, email FROM users WHERE role='EMPLOYEE' AND deleted_at IS NULL")
 	if err != nil {
-		return 0,nil, web.NewRequestError(
+		return 0, nil, web.NewRequestError(
 			errors.Wrap(err, "getting employee data"),
 			http.StatusInternalServerError,
 		)
@@ -664,7 +674,7 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 		var employeeID, email string
 
 		if err := rows.Scan(&employeeID, &email); err != nil {
-			return 0,nil, web.NewRequestError(
+			return 0, nil, web.NewRequestError(
 				errors.Wrap(err, "scanning employee data"),
 				http.StatusInternalServerError,
 			)
@@ -681,31 +691,31 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 
 	// Iteratsiya xatolari uchun tekshirish
 	if err := rows.Err(); err != nil {
-		return 0,nil, web.NewRequestError(
+		return 0, nil, web.NewRequestError(
 			errors.Wrap(err, "database iteration error"),
 			http.StatusInternalServerError,
 		)
 	}
 	if err := r.ValidateStruct(request.Excell); err != nil {
-		return 0,nil, web.NewRequestError(errors.Wrap(err, "validating excel request"), http.StatusBadRequest)
+		return 0, nil, web.NewRequestError(errors.Wrap(err, "validating excel request"), http.StatusBadRequest)
 	}
 
 	file, err := request.Excell.Open()
 	if err != nil {
-		return 0,nil, web.NewRequestError(errors.Wrap(err, "opening excel file"), http.StatusBadRequest)
+		return 0, nil, web.NewRequestError(errors.Wrap(err, "opening excel file"), http.StatusBadRequest)
 	}
 	defer file.Close()
 
 	tempFile, err := ioutil.TempFile("", "excel-*.xlsx")
 	if err != nil {
-		return 0,nil, web.NewRequestError(errors.Wrap(err, "creating temporary file"), http.StatusInternalServerError)
+		return 0, nil, web.NewRequestError(errors.Wrap(err, "creating temporary file"), http.StatusInternalServerError)
 	}
 	defer tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
 	_, err = io.Copy(tempFile, file)
 	if err != nil {
-		return 0,nil, web.NewRequestError(errors.Wrap(err, "copying excel file"), http.StatusInternalServerError)
+		return 0, nil, web.NewRequestError(errors.Wrap(err, "copying excel file"), http.StatusInternalServerError)
 	}
 	fields := map[int]string{
 		0: "EmployeeID",
@@ -721,13 +731,13 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 	}
 	excelData, invalidData, err := hashing.ExcelReaderByEdit(tempFile.Name(), fields, departmentMap, positionMap, employeeIDMap, emailMap)
 	if err != nil {
-		return 0,nil, web.NewRequestError(errors.Wrap(err, "reading excel data"), http.StatusBadRequest)
+		return 0, nil, web.NewRequestError(errors.Wrap(err, "reading excel data"), http.StatusBadRequest)
 	}
 
 	// Start a transaction
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return 0,nil, web.NewRequestError(errors.Wrap(err, "starting transaction"), http.StatusInternalServerError)
+		return 0, nil, web.NewRequestError(errors.Wrap(err, "starting transaction"), http.StatusInternalServerError)
 	}
 	defer func() {
 		if err != nil {
@@ -748,7 +758,7 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 			NickName:     &data.NickName,
 			Role:         &data.Role,
 			DepartmentID: &data.DepartmentID,
-			PositionID:   &data.PositionID,
+			PositionID:   data.PositionID,
 			Phone:        &data.Phone,
 			Email:        &data.Email,
 			UpdatedAt:    time.Now(),
@@ -756,7 +766,7 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 		}
 
 		if err := r.ValidateStruct(&user); err != nil {
-			return 0,nil, err
+			return 0, nil, err
 		}
 
 		q := r.NewUpdate().Table("users").Where("deleted_at IS NULL AND employee_id = ?", data.EmployeeID)
@@ -777,7 +787,9 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 			q.Set("department_id=?", data.DepartmentID)
 		}
 		if user.PositionID != nil {
-			q.Set("position_id=?", data.PositionID)
+			q.Set("position_id=?", *user.PositionID)
+		} else {
+			q.Set("position_id=?", nil) 
 		}
 		if user.Phone != nil {
 			q.Set("phone=?", data.Phone)
@@ -791,7 +803,7 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 		// Execute the update query
 		_, err = q.Exec(ctx)
 		if err != nil {
-			return 0,nil, web.NewRequestError(errors.Wrap(err, "updating user"), http.StatusBadRequest)
+			return 0, nil, web.NewRequestError(errors.Wrap(err, "updating user"), http.StatusBadRequest)
 		}
 
 		createdCount++
@@ -803,7 +815,7 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 func (r Repository) DeleteByExcell(ctx context.Context, request ExcellRequest) (int, string, error) {
 	_, err := r.CheckClaims(ctx, auth.RoleAdmin)
 	if err != nil {
-		return 0,"", err
+		return 0, "", err
 	}
 
 	if err := r.ValidateStruct(request.Excell); err != nil {
@@ -1330,7 +1342,7 @@ func (r Repository) GetDashboardList(ctx context.Context, filter Filter) ([]Depa
 			userID             sql.NullInt64
 			departmentName     sql.NullString
 			departmentNickName sql.NullString
-			role               sql.NullString 
+			role               sql.NullString
 			nickName           sql.NullString
 		)
 
@@ -1338,7 +1350,7 @@ func (r Repository) GetDashboardList(ctx context.Context, filter Filter) ([]Depa
 		err = rows.Scan(
 			&userID,
 			&detail.EmployeeID,
-			&role,  
+			&role,
 			&detail.LastName,
 			&nickName,
 			&detail.Status,
