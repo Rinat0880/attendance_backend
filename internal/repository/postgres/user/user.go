@@ -789,7 +789,7 @@ func (r Repository) UpdateByExcell(ctx context.Context, request ExcellRequest) (
 		if user.PositionID != nil {
 			q.Set("position_id=?", *user.PositionID)
 		} else {
-			q.Set("position_id=?", nil) 
+			q.Set("position_id=?", nil)
 		}
 		if user.Phone != nil {
 			q.Set("phone=?", data.Phone)
