@@ -159,7 +159,7 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
 			u.department_id,
 			d.name as department_name,
 			u.position_id,
-			p.name as position_name,
+			COALESCE(p.name, '') as position_name,
 			u.phone,
 			u.email
 		FROM users u
@@ -1451,12 +1451,12 @@ func (r *Repository) ExportEmployee(ctx context.Context) (string, error) {
 		u.nick_name,
 		u.role,
 		d.name as department_name,
-		p.name as position_name,
+		COALESCE(p.name, '') as position_name,
 		u.phone,
 		u.email
 	FROM users u
 	JOIN department d ON d.id = u.department_id AND d.deleted_at IS NULL
-	JOIN position p ON p.id = u.position_id AND p.deleted_at IS NULL
+	LEFT JOIN position p ON p.id = u.position_id AND p.deleted_at IS NULL
 	WHERE u.deleted_at IS NULL 
 	ORDER BY u.employee_id DESC;
 `

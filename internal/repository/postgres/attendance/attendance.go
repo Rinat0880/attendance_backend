@@ -113,7 +113,7 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
     u.department_id,
     d.name AS department_name,
     u.position_id,
-    p.name AS position_name,
+    COALESCE(p.name, '') AS position_name,
     u.nick_name,
     a.work_day,
     a.status,
