@@ -153,7 +153,7 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
 		SELECT 
 			u.id,
 			u.employee_id,
-			CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+			CONCAT(u.last_name, ' ', u.first_name) AS full_name,
 			u.nick_name,
 			u.role,
 			u.department_id,
@@ -200,6 +200,7 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
 		} else {
 			detail.NickName = ""
 		}
+		
 
 		list = append(list, detail)
 	}
@@ -241,7 +242,7 @@ func (r Repository) GetDetailById(ctx context.Context, id int) (GetDetailByIdRes
 		SELECT
 			u.id,
 			u.employee_id,
-			CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+			CONCAT(u.last_name, ' ', u.first_name) AS full_name,
 			u.nick_name,
 			u.role
 			u.department_id,

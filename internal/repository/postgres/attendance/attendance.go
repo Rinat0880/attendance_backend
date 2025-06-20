@@ -109,7 +109,7 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
 	
 	SELECT
     u.employee_id,
-    CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+    CONCAT(u.last_name, ' ', u.first_name) AS full_name,
     u.department_id,
     d.name AS department_name,
     u.position_id,
@@ -232,7 +232,7 @@ func (r Repository) GetDetailById(ctx context.Context, id int) (GetDetailByIdRes
 		SELECT
 			a.id,
 			a.employee_id,
-            CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+            CONCAT(u.last_name, ' ', u.first_name) AS full_name,
 			u.department_id,
 			d.name,
 			u.position_id,
@@ -294,7 +294,7 @@ func (r Repository) GetHistoryById(ctx context.Context, employeeID string, date 
 	query := `
 		SELECT
 			a.employee_id,
-		    CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+		    CONCAT(u.last_name, ' ', u.first_name) AS full_name,
 			a.status,
 			a.work_day,
 			TO_CHAR(ap.come_time, 'HH24:MI') as come_time,
