@@ -15,7 +15,7 @@ A comprehensive backend system for tracking employee attendance with features fo
 - **Excel Import/Export**: Bulk employee data operations
 - **Multi-language Support**: Configurable language settings
 
-## 🛠 Technology Stack
+## Technology Stack
 
 - **Go 1.23** - Main programming language
 - **Gin** - Web framework
@@ -134,89 +134,391 @@ The server will start on `http://localhost:8080`
 docker-compose up -d
 ```
 
-### Production Deployment
+# Complete AWS Deployment Guide - Backend & Frontend
 
-For production deployment, update your code and restart containers:
+This guide covers the complete deployment process for both backend and frontend applications on AWS EC2, designed for backend developers who also handle DevOps responsibilities.
 
-```bash
-# Stop containers
-sudo docker-compose down
+## 1. AWS EC2 Instance Setup
 
-# Pull latest changes
-git pull origin main
+### Launch Instance
+1. Log in to your AWS Console
+2. Navigate to EC2 Dashboard → Launch Instance
+3. Select **Ubuntu 20.04 LTS** as the AMI
+4. Choose instance type (t2.micro for testing, t3.medium+ for production)
+5. Configure storage (minimum 20GB recommended)
 
-# Rebuild and start
-sudo docker-compose build
-sudo docker-compose up -d
-```
+### Security Group Configuration
+Configure inbound rules to allow:
+- **Port 22** (SSH) - Your IP only
+- **Port 80** (HTTP) - 0.0.0.0/0
+- **Port 443** (HTTPS) - 0.0.0.0/0
+- **Port 5432** (PostgreSQL) - Your IP only
+- **Port 8080** (Backend API) - 127.0.0.1 only (internal)
+- **Port 3000** (Frontend) - 127.0.0.1 only (internal)
 
-## AWS Deployment Guide
-
-### 1. EC2 Instance Setup
-
-1. Launch Ubuntu 20.04 EC2 instance
-2. Configure Security Groups:
-   - Port 5432 (PostgreSQL)
-   - Port 8080 (Backend API)
-   - Port 3000 (Frontend)
-   - Port 80, 443 (HTTP/HTTPS)
-3. Connect via SSH:
-
+### Connect to Instance
 ```bash
 ssh -i your-key.pem ubuntu@your-ec2-public-ip
 ```
 
-### 2. Server Preparation
+## 2. Server Preparation
 
+### Update System Packages
 ```bash
-# Update packages
 sudo apt update && sudo apt upgrade -y
+```
 
+### Install Docker and Docker Compose
+```bash
 # Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Add user to docker group
+sudo usermod -aG docker ubuntu
+
+# Install Docker Compose
 sudo apt install docker-compose -y
 
-# Install Nginx
-sudo apt install nginx -y
+# Verify installation
+docker --version
+docker-compose --version
+```
 
-# Install Certbot for SSL
+### Install Nginx
+```bash
+sudo apt install nginx -y
+sudo systemctl start nginx
+sudo systemctl enable nginx
+```
+
+### Install SSL Certificate Tool
+```bash
 sudo apt install certbot python3-certbot-nginx -y
 ```
 
-### 3. Nginx Configuration
-
-Create backend configuration:
-
+### Install Additional Tools
 ```bash
-sudo nano /etc/nginx/sites-enabled/backend.conf
+# Install Git for cloning repositories
+sudo apt install git -y
+
+# Install Node.js and npm (if needed for frontend builds)
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+## 3. Domain and DNS Configuration
+
+### Set Up DNS Records
+Before proceeding, ensure you have:
+- **A record** for your API domain pointing to your EC2 public IP
+- **A record** for your frontend domain pointing to your EC2 public IP
+
+Example:
+- `api.yourdomain.com` → `your-ec2-public-ip`
+- `app.yourdomain.com` → `your-ec2-public-ip`
+
+## 4. Nginx Configuration
+
+### Backend Proxy Configuration
+```bash
+sudo nano /etc/nginx/sites-available/backend.conf
 ```
 
 ```nginx
 server {
-    server_name your-api-domain.com;
+    listen 80;
+    server_name api.yourdomain.com;
 
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-NginX-Proxy true;
         proxy_redirect off;
+        proxy_buffering off;
     }
 }
 ```
 
-### 4. Enable SSL
-
+### Frontend Proxy Configuration
 ```bash
-sudo certbot --nginx -d your-api-domain.com
+sudo nano /etc/nginx/sites-available/frontend.conf
 ```
 
-### 5. Deploy Application
+```nginx
+server {
+    listen 80;
+    server_name app.yourdomain.com;
 
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-NginX-Proxy true;
+        proxy_redirect off;
+        proxy_buffering off;
+        
+        # WebSocket support (if your frontend uses WebSockets)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+### Enable Sites and Test Configuration
 ```bash
-cd attendance_backend
+# Enable the sites
+sudo ln -s /etc/nginx/sites-available/backend.conf /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/frontend.conf /etc/nginx/sites-enabled/
+
+# Remove default site
+sudo rm /etc/nginx/sites-enabled/default
+
+# Test configuration
+sudo nginx -t
+
+# Reload nginx
+sudo systemctl reload nginx
+```
+
+## 5. SSL Certificate Setup
+
+### Backend SSL
+```bash
+sudo certbot --nginx -d api.yourdomain.com
+```
+
+### Frontend SSL
+```bash
+sudo certbot --nginx -d app.yourdomain.com
+```
+
+### Auto-renewal Setup
+```bash
+# Test auto-renewal
+sudo certbot renew --dry-run
+
+# Certbot automatically sets up a cron job, but you can verify:
+sudo crontab -l
+```
+
+## 6. Backend Deployment
+
+### Clone and Setup Backend
+```bash
+# Clone your repository
+git clone https://github.com/yourusername/your-backend-repo.git
+cd your-backend-repo
+
+# Copy and configure environment file
+cp .env.example .env
+sudo nano .env
+```
+
+### Configure Environment Variables
+Update your `.env` file with production values:
+```env
+NODE_ENV=production
+PORT=8080
+DATABASE_URL=postgresql://username:password@localhost:5432/dbname
+JWT_SECRET=your-super-secret-jwt-key
+API_URL=https://api.yourdomain.com
+FRONTEND_URL=https://app.yourdomain.com
+```
+
+### Build and Deploy Backend
+```bash
+# Build and start services
 sudo docker-compose build
 sudo docker-compose up -d
+
+# Check if services are running
+sudo docker-compose ps
+sudo docker-compose logs
+```
+
+## 7. Frontend Deployment
+
+### Method 1: Local Build and Push to Docker Hub
+
+#### On Your Local Machine:
+```bash
+# Navigate to frontend project
+cd your-frontend-project
+
+# Update environment variables for production
+# Create or update .env.production
+echo "REACT_APP_API_URL=https://api.yourdomain.com" > .env.production
+echo "REACT_APP_ENVIRONMENT=production" >> .env.production
+
+# Build Docker image
+docker build -t yourusername/your-frontend:latest .
+
+# Push to Docker Hub
+docker login
+docker push yourusername/your-frontend:latest
+```
+
+#### On Your EC2 Server:
+```bash
+# Pull the latest image
+docker pull yourusername/your-frontend:latest
+
+# Stop existing container (if any)
+docker stop frontend-app || true
+docker rm frontend-app || true
+
+# Run new container
+docker run -d \
+  --name frontend-app \
+  -p 3000:80 \
+  --restart unless-stopped \
+  yourusername/your-frontend:latest
+
+# Verify container is running
+docker ps
+docker logs frontend-app
+```
+
+### Method 2: Direct Build on Server
+
+```bash
+# Clone frontend repository
+git clone https://github.com/yourusername/your-frontend-repo.git
+cd your-frontend-repo
+
+# Install dependencies and build
+npm install
+npm run build
+
+# Create Dockerfile for production (if not exists)
+cat > Dockerfile << EOF
+FROM nginx:alpine
+COPY build/ /usr/share/nginx/html/
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+EOF
+
+# Create nginx configuration for the container
+cat > nginx.conf << EOF
+server {
+    listen 80;
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files \$uri \$uri/ /index.html;
+    }
+}
+EOF
+
+# Build and run
+docker build -t frontend-app .
+docker run -d --name frontend-app -p 3000:80 --restart unless-stopped frontend-app
+```
+
+## 8. Database Setup (if using PostgreSQL)
+
+### Install PostgreSQL
+```bash
+sudo apt install postgresql postgresql-contrib -y
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+```
+
+### Configure Database (if occured some troubleshots)
+```bash
+# Switch to postgres user
+sudo -u postgres psql
+
+# Create database and user
+CREATE DATABASE your_database_name;
+CREATE USER your_username WITH ENCRYPTED PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE your_database_name TO your_username;
+\q
+```
+
+## 9. Monitoring and Maintenance
+
+### Check Application Status
+```bash
+# Check Docker containers
+sudo docker ps -a
+
+# Check nginx status
+sudo systemctl status nginx
+
+# Check backend logs (attendance_backend)
+sudo docker logs attendance_backend
+
+# Check frontend logs
+sudo docker logs attendance_frontend
+
+# Check nginx error logs
+sudo tail -f /var/log/nginx/error.log
+```
+
+### Backend Container Management
+```bash
+# View backend container status
+sudo docker-compose ps
+
+# Stop backend services
+sudo docker-compose down
+
+# Restart backend services
+sudo docker-compose up -d
+
+# View backend logs in real-time
+sudo docker-compose logs -f
+```
+
+### Frontend Container Management
+```bash
+# Check frontend container
+sudo docker ps | grep attendance_frontend
+
+# Stop frontend container
+sudo docker stop attendance_frontend
+
+# Remove frontend container
+sudo docker rm attendance_frontend
+
+# Start new frontend container
+sudo docker run -d -p 3000:80 --name attendance_frontend --restart unless-stopped yourusername/attendance_frontend:latest
+```
+
+### Update Applications
+
+#### Backend Updates
+```bash
+cd ~/attendance_backend
+git pull origin main
+sudo docker-compose down
+sudo docker-compose build
+sudo docker-compose up -d
+```
+
+#### Frontend Updates
+```bash
+# Pull latest frontend image
+sudo docker pull yourusername/attendance_frontend:latest
+
+# Stop and remove old container
+sudo docker stop attendance_frontend
+sudo docker rm attendance_frontend
+
+# Remove old image (optional)
+sudo docker rmi $(sudo docker images yourusername/attendance_frontend -q | tail -n +2)
+
+# Start new container
+sudo docker run -d -p 3000:80 --name attendance_frontend --restart unless-stopped yourusername/attendance_frontend:latest
 ```
 
 ## Google OAuth Setup
