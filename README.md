@@ -538,35 +538,220 @@ sudo docker run -d -p 3000:80 --name attendance_frontend --restart unless-stoppe
 
 ## API Documentation
 
-### Authentication Endpoints
+### Authentication
 
-- `POST /api/v1/sign-in` - User login
-- `POST /api/v1/refresh-token` - Refresh JWT token
-- `GET /api/v1/auth/google` - Google OAuth login
+- `POST /api/v1/sign-in`  
+  User login.  
+  Access: Open
 
-### User Management
+- `POST /api/v1/refresh-token`  
+  JWT token refresh.  
+  Access: Open
 
-- `GET /api/v1/user/list` - Get users list
-- `POST /api/v1/user/create` - Create new user
-- `GET /api/v1/user/statistics` - Get user statistics
-- `GET /api/v1/user/qrcode` - Generate user QR code
+- `POST /api/v1/logout`  
+  User logout (token invalidation).  
+  Access: Open
+
+- `GET /api/v1/auth/google`  
+  Redirect to Google OAuth.  
+  Access: Open
+
+- `GET /api/v1/auth/google/callback`  
+  Callback for Google OAuth.  
+  Access: Open
+
+- `GET /api/v1/auth/google/force-select`  
+  Google OAuth with forced account selection.  
+  Access: Open
+
+### Files
+
+- `GET /media/*filepath`  
+  Get a file (e.g. images).  
+  Access: Open
+
+- `HEAD /media/*filepath`  
+  Check for file existence.  
+  Access: Open
+
+### Users
+
+- `GET /api/v1/user/list`  
+  List of users.  
+  Access: Only for Admin
+
+- `GET /api/v1/user/:id`  
+  Detailed information about the user by ID.  
+  Access: Only for Admin
+
+- `GET /api/v1/user/qrcodehimself`  
+  Get a QR code for yourself (by your EmployeeID).  
+  Access: Only for Employee
+
+- `GET /api/v1/user/qrcode`  
+  Get a QR code by EmployeeID (any user).  
+  Access: Only for Admin
+
+- `GET /api/v1/user/qrcodelist`  
+  Get a list of QR codes for all employees.  
+  Access: Only for Admin
+
+- `GET /api/v1/user/export_employee`  
+  Export employees to Excel.  
+  Access: Admin Only
+
+- `GET /api/v1/user/export_template`  
+  Download template for importing employees.  
+  Access: Admin Only
+
+- `POST /api/v1/user/create`  
+  Create a user.  
+  Access: Admin Only  
+  Validation: Email, phone, Latin
+
+- `POST /api/v1/user/create_excell`  
+  Bulk create users from Excel.  
+  Access: Admin Only
+
+- `PATCH /api/v1/user/:id`  
+  Update individual user fields.  
+  Access: Admin Only  
+  Validation: Email, phone, Latin
+
+- `DELETE /api/v1/user/:id`  
+  Delete a user.  
+  Access: Admin Only
+
+- `GET /api/v1/user/statistics`  
+  Get user statistics.  
+  Access: Any authorized
+
+- `GET /api/v1/user/monthly`  
+  Monthly user statistics.  
+  Access: Any authorized
+
+- `GET /api/v1/user/dashboard`  
+  Employee dashboard.  
+  Access: Any authorized
+
+- `GET /api/v1/user/dashboardlist`  
+  SSE (Server-Sent Events) for real-time dashboard.  
+  Access: Open (but there may be a check inside the controller)
+
+### Departments
+
+- `GET /api/v1/department/list`  
+  List of departments.  
+  Access: Admin, Dashboard
+
+- `GET /api/v1/department/:id`  
+  Department details.  
+  Access: Admin only
+
+- `POST /api/v1/department/create`  
+  Create a department.  
+  Access: Admin only
+
+- `PATCH /api/v1/department/:id`  
+  Update a department (partially).  
+  Access: Admin only
+
+- `DELETE /api/v1/department/:id`  
+  Delete a department.  
+  Access: Admin Only
+
+### Positions
+
+- `GET /api/v1/position/list`  
+  List of positions.  
+  Access: Admin, Dashboard
+
+- `GET /api/v1/position/:id`  
+  Post details of a position.  
+  Access: Admin Only
+
+- `POST /api/v1/position/create`  
+  Create a position.  
+  Access: Admin Only
+
+- `PUT /api/v1/position/:id`  
+  Full update of a position.  
+  Access: Admin Only
+
+- `PATCH /api/v1/position/:id`  
+  Partial update of a position.  
+  Access: Admin Only
+
+- `DELETE /api/v1/position/:id`  
+  Delete a position.  
+  Access: Admin Only
+
+### Company Info
+
+- `GET /api/v1/company_info/list`  
+  Get information about a company.  
+  Access: Admin Only
+
+- `PUT /api/v1/company_info/:id`  
+  Update all company information.  
+  Access: Admin Only  
+  Validation: Latin
 
 ### Attendance
 
-- `GET /api/v1/attendance/list` - Get attendance records
-- `POST /api/v1/attendance/createbyphone` - Check-in via phone
-- `POST /api/v1/attendance/createbyqrcode` - Check-in via QR code
-- `PATCH /api/v1/attendance/exitbyphone` - Check-out via phone
+- `GET /api/v1/attendance/list`  
+  Attendance list.  
+  Access: Admin, Employee, Dashboard
 
-### Departments & Positions
+- `GET /api/v1/attendance/:id`  
+  Attendance details by ID.  
+  Access: Admin Only
 
-- `GET /api/v1/department/list` - Get departments
-- `POST /api/v1/department/create` - Create department
-- `GET /api/v1/position/list` - Get positions
+- `GET /api/v1/attendance/history`  
+  Attendance history by ID.  
+  Access: Admin Only
 
-### Real-time Dashboard
+- `POST /api/v1/attendance/createbyphone`  
+  Check in by phone.  
+  Access: Any authorized
 
-- `GET /api/v1/user/dashboardlist` - SSE stream for dashboard
+- `POST /api/v1/attendance/createbyqrcode`  
+  Check in by QR code.  
+  Access: Any authorized
+
+- `PATCH /api/v1/attendance/exitbyphone`  
+  Mark exit by phone (check-out).  
+  Access: Any authorized
+
+- `PUT /api/v1/attendance/:id`  
+  Full update of attendance record.  
+  Access: Only for Admin  
+  Validation: Latin
+
+- `PATCH /api/v1/attendance/:id`  
+  Partial update of attendance record.  
+  Access: Only for Admin  
+  Validation: Latin
+
+- `DELETE /api/v1/attendance/:id`  
+  Delete attendance record.  
+  Access: Only for Admin
+
+- `GET /api/v1/attendance`  
+  General attendance statistics.  
+  Access: Only for Admin
+
+- `GET /api/v1/attendance/piechart`  
+  Statistics for pie chart.  
+  Access: Admin Only
+
+- `GET /api/v1/attendance/barchart`  
+  Bar chart statistics.  
+  Access: Admin Only
+
+- `GET /api/v1/attendance/graph`  
+  Attendance graph.  
+  Access: Admin
 
 ## Database Schema
 
