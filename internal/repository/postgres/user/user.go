@@ -1323,7 +1323,7 @@ func (r Repository) GetDashboardList(ctx context.Context, filter Filter) ([]Depa
                        WHERE
                            a.work_day = '%s'  AND a.deleted_at IS NULL
                    ) AS a ON a.employee_id = u.employee_id
-                   WHERE    d.deleted_at IS NULL AND u.role = 'EMPLOYEE'
+                   WHERE    d.deleted_at IS NULL 
                    ORDER BY   d.display_number ASC %s %s`, workDay, limitQuery, offsetQuery)
 
 	rows, err := r.QueryContext(ctx, query)

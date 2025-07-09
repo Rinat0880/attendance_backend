@@ -50,7 +50,7 @@ func (r Repository) GetList(ctx context.Context, filter Filter) ([]GetListRespon
 		return []GetListResponse{}, 0, err
 	}
 
-	whereQuery := `WHERE u.deleted_at IS NULL and u.role='EMPLOYEE'  ` // Ensure we only get active users
+	whereQuery := `WHERE u.deleted_at IS NULL AND u.first_name != ''` // Ensure we only get active users
 
 	if filter.Search != nil {
 		search := strings.Replace(*filter.Search, " ", "", -1)
@@ -303,7 +303,7 @@ func (r Repository) GetHistoryById(ctx context.Context, employeeID string, date 
 		FROM attendance a
 		LEFT JOIN users u ON a.employee_id = u.employee_id 
 		LEFT JOIN attendance_period ap ON ap.attendance_id = a.id
-		WHERE u.deleted_at IS NULL AND a.deleted_at IS NULL AND u.role = 'EMPLOYEE' AND a.employee_id = ? AND ap.work_day = ?
+		WHERE u.deleted_at IS NULL AND a.deleted_at IS NULL AND a.employee_id = ? AND ap.work_day = ?
 		GROUP BY a.employee_id, full_name, a.status, a.work_day, ap.come_time, ap.leave_time
 		ORDER BY ap.come_time, ap.leave_time
 	`
