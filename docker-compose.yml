@@ -19,7 +19,7 @@ version: '3'
 services:
   backend:
     build: "./"
-    restart: always
+    restart: on-failure:5
     container_name: attendance-app
     labels:
       logging: "promtail"
@@ -38,7 +38,7 @@ services:
   db:
     image: postgres:latest
     container_name: postgres-db
-    restart: always
+    restart: on-failure:5
     environment:
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "password1"
